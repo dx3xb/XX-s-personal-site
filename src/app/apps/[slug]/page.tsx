@@ -1,3 +1,6 @@
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 // src/app/apps/[slug]/page.tsx
 import Link from "next/link";
 import { notFound } from "next/navigation";
