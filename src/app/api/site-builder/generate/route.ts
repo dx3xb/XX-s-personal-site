@@ -337,7 +337,9 @@ export async function POST(request: Request) {
       );
     }
 
-    let payload: { title?: string; html?: string; content_text?: string };
+    let payload:
+      | { title?: string; html?: string; content_text?: string }
+      | null;
     const cleaned = sanitizeJson(
       rawText
       .trim()
