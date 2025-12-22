@@ -39,28 +39,40 @@ function parsePage(text: string) {
 }
 
 async function callGemini(apiKey: string, model: string, prompt: string) {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: prompt }],
-          },
-        ],
-        generationConfig: {
-          maxOutputTokens: 1600,
-          responseMimeType: "application/json",
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "x-goog-api-key": apiKey,
+          "Content-Type": "application/json",
         },
-      }),
-    }
-  );
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: prompt }],
+            },
+          ],
+          generationConfig: {
+            maxOutputTokens: 1600,
+            responseMimeType: "application/json",
+          },
+        }),
+      }
+    );
+  } catch (error) {
+    const cause = error instanceof Error ? error.cause : null;
+    const detail =
+      cause && typeof cause === "object" && "code" in cause
+        ? `${(cause as { code?: string }).code}`
+        : cause instanceof Error
+          ? cause.message
+          : "unknown";
+    throw new Error(`Gemini fetch failed: ${detail}`);
+  }
 
   const text = await response.text();
   if (!response.ok) {
