@@ -156,8 +156,22 @@ export default function WebBuilderClient({ initialPage }: Props) {
       ({
         ...current,
         root: updateNode(current.root, selectedId, (node) => ({
-          ...node,
-          props: { ...(node.props ?? {}), [key]: value },
+          ...(() => {
+            switch (node.type) {
+              case "container":
+                return { ...node, props: { ...(node.props ?? {}), [key]: value } };
+              case "text":
+                return { ...node, props: { ...node.props, [key]: value } };
+              case "button":
+                return { ...node, props: { ...node.props, [key]: value } };
+              case "link":
+                return { ...node, props: { ...node.props, [key]: value } };
+              case "image":
+                return { ...node, props: { ...node.props, [key]: value } };
+              default:
+                return node;
+            }
+          })(),
         })),
       })
     );
