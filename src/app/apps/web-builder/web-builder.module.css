@@ -1,0 +1,219 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  min-height: 100vh;
+  background: #0b0f1f;
+  color: #e2e8f0;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.promptRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.promptInput {
+  min-height: 80px;
+  background: #111827;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  color: #e2e8f0;
+  padding: 12px;
+  resize: vertical;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 320px;
+  gap: 16px;
+  flex: 1;
+}
+
+.panel {
+  background: #111827;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  padding: 12px;
+  overflow: auto;
+  max-height: calc(100vh - 240px);
+}
+
+.panelHeader {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+.canvas {
+  background: #0f172a;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  padding: 24px;
+  overflow: auto;
+  max-height: calc(100vh - 240px);
+}
+
+.section {
+  margin-bottom: 20px;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  color: #cbd5f5;
+  margin-bottom: 8px;
+}
+
+.label {
+  display: block;
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 10px 0 6px;
+}
+
+.input,
+.textarea,
+.select {
+  width: 100%;
+  background: #0b1220;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  color: #e2e8f0;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.primaryButton,
+.secondaryButton,
+.ghostButton,
+.dangerButton {
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.primaryButton {
+  background: #8b5cf6;
+  color: #0b0f1f;
+}
+
+.secondaryButton {
+  background: rgba(139, 92, 246, 0.2);
+  color: #e2e8f0;
+  border-color: rgba(139, 92, 246, 0.4);
+}
+
+.ghostButton {
+  background: transparent;
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+.dangerButton {
+  background: rgba(248, 113, 113, 0.2);
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.treeItem {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 6px 8px;
+  color: #94a3b8;
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.treeItemActive {
+  background: rgba(139, 92, 246, 0.2);
+  color: #e2e8f0;
+  border-radius: 6px;
+}
+
+.treeType {
+  color: #cbd5f5;
+  min-width: 64px;
+}
+
+.status {
+  font-size: 12px;
+  color: #cbd5f5;
+}
+
+.empty {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.metaRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.metaLabel {
+  color: #64748b;
+}
+
+.metaValue {
+  color: #e2e8f0;
+}
+
+.tokenList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.tokenRow {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  padding-bottom: 4px;
+}
