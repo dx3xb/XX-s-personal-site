@@ -64,7 +64,7 @@ async function callGemini(apiKey: string, model: string, prompt: string) {
 
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(text);
+    throw new Error(`Gemini API error ${response.status}: ${text}`);
   }
   const data = JSON.parse(text) as {
     candidates?: { content?: { parts?: { text?: string }[] } }[];
@@ -138,7 +138,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const first = await callGemini(apiKey, model, buildPrompt(parsed.data.prompt));
+    const first = await callGemini(
+      apiKey,
+      model,
+      buildPrompt(parsed.data.prompt)
+    );
     let result = parsePage(first);
     if (!result?.page) {
       const errorMessage =
@@ -162,8 +166,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, page: result.page });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "AI generate failed";
     return NextResponse.json(
-      { ok: false, error: "AI generate failed" },
+      { ok: false, error: message },
       { status: 500 }
     );
   }
