@@ -155,7 +155,7 @@ function deriveSlots(
         section: "module",
         text: module.text_ref || contentText,
       });
-      if (module.items?.length && module.items.length <= 6) {
+      if (module.items?.length) {
         for (const item of module.items) {
           slots.push({
             id: `item-${item.id}-img`,
@@ -294,7 +294,7 @@ export async function POST(request: Request) {
       "输出严格 JSON：{ images: [{ id, usage, section, prompt, negative_prompt, style, aspect_ratio, size, seed }] }。",
       "prompt 必须是中文，包含主体、场景、动作、风格、光线、构图。",
       "每张图必须与页面内容强相关，不要复用模板句。",
-      "数量建议：1-12 张，内容越多图片越多。",
+      "数量应根据内容丰富程度判断，可多可少，不设上限。",
       "禁止在画面中出现文字或水印。",
       JSON.stringify(context),
     ].join("\n");
