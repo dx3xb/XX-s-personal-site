@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { z } from "zod";
 import {
+  ImagePlanSchema,
   PagePlanSchema,
   detectRequestedImageCount,
   normalizePagePlan,
@@ -258,9 +259,11 @@ export async function POST(request: Request) {
           parts: [
             {
               text:
-                `只输出严格 JSON，字段必须包含：title, content_text, html。\n` +
+                `只输出严格 JSON，字段必须包含：title, content_text, html, image_plan。\n` +
                 `content_text 为“准备生成的文字内容”，只包含纯文字，不含 HTML。\n` +
                 `html 必须是完整 HTML 文档，包含 <!doctype html> 与 <html>。\n` +
+                `image_plan 为图片计划：{ images: [{ id, usage, section, prompt, negative_prompt, style, aspect_ratio, size, seed }] }。\n` +
+                `必须为每张图片提供中文 prompt，且 html 内需预先放好 data-sb-image 占位符，id 与 image_plan.images[].id 对应。\n` +
                 `不得输出任何解释或多余文本。\n` +
                 `必须最大程度还原用户输入的文字内容；若输入含糊，先补全合理内容再写 HTML。\n` +
                 `文档内必须包含合适数量的图片（使用 data-sb-image 占位符）。\n\n` +
@@ -278,8 +281,32 @@ export async function POST(request: Request) {
             title: { type: "string" },
             content_text: { type: "string" },
             html: { type: "string" },
+            image_plan: {
+              type: "object",
+              properties: {
+                images: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string" },
+                      usage: { type: "string" },
+                      section: { type: "string" },
+                      prompt: { type: "string" },
+                      negative_prompt: { type: "string" },
+                      style: { type: "string" },
+                      aspect_ratio: { type: "string" },
+                      size: { type: "string" },
+                      seed: { type: "number" },
+                    },
+                    required: ["id", "usage", "section", "prompt"],
+                  },
+                },
+              },
+              required: ["images"],
+            },
           },
-          required: ["title", "content_text", "html"],
+          required: ["title", "content_text", "html", "image_plan"],
         },
       },
     });
@@ -338,7 +365,12 @@ export async function POST(request: Request) {
     }
 
     let payload:
-      | { title?: string; html?: string; content_text?: string }
+      | {
+          title?: string;
+          html?: string;
+          content_text?: string;
+          image_plan?: unknown;
+        }
       | null;
     const cleaned = sanitizeJson(
       rawText
@@ -374,8 +406,9 @@ export async function POST(request: Request) {
                   {
                     text:
                       `请把下面内容修复为严格 JSON，仅输出 JSON。\n` +
-                      `字段必须包含：title, content_text, html。\n` +
-                      `content_text 为纯文字；html 为完整 HTML 文档。\n\n` +
+                      `字段必须包含：title, content_text, html, image_plan。\n` +
+                      `content_text 为纯文字；html 为完整 HTML 文档。\n` +
+                      `image_plan 为图片计划，包含 images[].\n\n` +
                       `原始输出：\n${rawText}`,
                   },
                 ],
@@ -421,6 +454,7 @@ export async function POST(request: Request) {
           title: extractTitleFromHtml(fallbackHtml) || "Generated Page",
           content_text: "",
           html: fallbackHtml,
+          image_plan: { images: [] },
         };
       } else {
         return NextResponse.json(
@@ -433,6 +467,8 @@ export async function POST(request: Request) {
     let title = String(payload?.title ?? "").trim();
     let html = String(payload?.html ?? "").trim();
     const contentText = String(payload?.content_text ?? "").trim();
+    const imagePlanRaw = payload?.image_plan ?? null;
+    const imagePlanParsed = ImagePlanSchema.safeParse(imagePlanRaw);
 
     if (html.startsWith("{") && html.includes("\"html\"")) {
       try {
@@ -464,6 +500,12 @@ export async function POST(request: Request) {
         { status: 502 }
       );
     }
+    if (!imagePlanParsed.success || imagePlanParsed.data.images.length === 0) {
+      return NextResponse.json(
+        { ok: false, error: "AI response missing image_plan" },
+        { status: 502 }
+      );
+    }
 
     const htmlLower = html.toLowerCase();
     if (!htmlLower.includes("<html") && !htmlLower.includes("<!doctype")) {
@@ -488,9 +530,16 @@ export async function POST(request: Request) {
 
     await query(
       `update public.projects
-       set title = $1, generated_html = $2, user_prompt = $3, page_plan = $4, image_plan = null
-       where id = $5`,
-      [finalTitle, html, prompt, JSON.stringify(normalizedPlan), projectId]
+       set title = $1, generated_html = $2, user_prompt = $3, page_plan = $4, image_plan = $5
+       where id = $6`,
+      [
+        finalTitle,
+        html,
+        prompt,
+        JSON.stringify(normalizedPlan),
+        JSON.stringify(imagePlanParsed.data),
+        projectId,
+      ]
     );
 
     await query(
@@ -507,11 +556,31 @@ export async function POST(request: Request) {
 
     await query(`delete from public.images where project_id = $1`, [projectId]);
 
+    for (const image of imagePlanParsed.data.images) {
+      await query(
+        `insert into public.images (project_id, slot_id, usage, section, prompt, negative_prompt, style, aspect_ratio, size, seed)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          projectId,
+          image.id,
+          image.usage,
+          image.section,
+          image.prompt,
+          image.negative_prompt ?? null,
+          image.style ?? null,
+          image.aspect_ratio ?? null,
+          image.size ?? null,
+          image.seed ?? null,
+        ]
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       title: finalTitle,
       html,
       projectId,
+      image_plan: imagePlanParsed.data,
     });
   } catch (err: any) {
     return NextResponse.json(
