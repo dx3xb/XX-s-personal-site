@@ -345,25 +345,86 @@ export async function POST(request: Request) {
       .replace(/^```\s*/i, "")
       .replace(/```$/i, "")
     );
-    try {
-      payload = JSON.parse(cleaned);
-    } catch (err: any) {
-      const candidate = extractJsonObject(cleaned) || cleaned;
+    const parseOrNull = (input: string) => {
       try {
-        payload = JSON.parse(candidate);
+        return JSON.parse(input) as typeof payload;
       } catch {
-        const fallbackHtml = extractHtmlDocument(cleaned);
-        if (fallbackHtml) {
-          payload = {
-            title: extractTitleFromHtml(fallbackHtml) || "Generated Page",
-            html: fallbackHtml,
-          };
-        } else {
-          return NextResponse.json(
-            { ok: false, error: "AI response is not valid JSON" },
-            { status: 502 }
-          );
+        return null;
+      }
+    };
+    payload = parseOrNull(cleaned) ?? parseOrNull(extractJsonObject(cleaned) || "");
+
+    if (!payload) {
+      // Retry with repair prompt when model returns non-JSON text.
+      const repairResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "x-goog-api-key": apiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text:
+                      `请把下面内容修复为严格 JSON，仅输出 JSON。\n` +
+                      `字段必须包含：title, content_text, html。\n` +
+                      `content_text 为纯文字；html 为完整 HTML 文档。\n\n` +
+                      `原始输出：\n${rawText}`,
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              maxOutputTokens: 1800,
+              responseMimeType: "application/json",
+            },
+          }),
         }
+      );
+
+      if (!repairResponse.ok) {
+        const errorText = await repairResponse.text();
+        return NextResponse.json(
+          { ok: false, error: `AI repair failed: ${errorText}` },
+          { status: 502 }
+        );
+      }
+
+      const repairData = await repairResponse.json();
+      const repairText =
+        repairData?.candidates?.[0]?.content?.parts
+          ?.map((part: any) => part?.text ?? "")
+          .join("") || "";
+      const cleanedRepair = sanitizeJson(
+        repairText
+          .trim()
+          .replace(/^```json\s*/i, "")
+          .replace(/^```\s*/i, "")
+          .replace(/```$/i, "")
+      );
+      payload =
+        parseOrNull(cleanedRepair) ??
+        parseOrNull(extractJsonObject(cleanedRepair) || "");
+    }
+
+    if (!payload) {
+      const fallbackHtml = extractHtmlDocument(cleaned);
+      if (fallbackHtml) {
+        payload = {
+          title: extractTitleFromHtml(fallbackHtml) || "Generated Page",
+          content_text: "",
+          html: fallbackHtml,
+        };
+      } else {
+        return NextResponse.json(
+          { ok: false, error: "AI response is not valid JSON" },
+          { status: 502 }
+        );
       }
     }
 
