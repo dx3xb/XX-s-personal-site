@@ -6,10 +6,11 @@ export const runtime = "nodejs";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const page = await getPage(params.id);
+    const { id } = await params;
+    const page = await getPage(id);
     if (!page) {
       return NextResponse.json(
         { ok: false, error: "Page not found" },
@@ -27,9 +28,10 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const page = body?.page;
     if (!page) {
@@ -38,7 +40,7 @@ export async function PUT(
         { status: 400 }
       );
     }
-    const parsed = PageSchema.parse({ ...page, id: params.id });
+    const parsed = PageSchema.parse({ ...page, id });
     const saved = await savePage(parsed);
     return NextResponse.json({ ok: true, page: saved });
   } catch (error) {
@@ -51,10 +53,11 @@ export async function PUT(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await deletePage(params.id);
+    const { id } = await params;
+    await deletePage(id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(
