@@ -251,48 +251,70 @@ export async function POST(request: Request) {
       ? normalizePagePlan(plan, prompt, requestedCount)
       : buildFallbackPlan(prompt);
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "x-goog-api-key": apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
+    const requestBody = JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
             {
-              role: "user",
-              parts: [
-                {
-                  text:
-                    `只输出严格 JSON，字段必须包含：title, content_text, html。\n` +
-                    `content_text 为“准备生成的文字内容”，只包含纯文字，不含 HTML。\n` +
-                    `html 必须是完整 HTML 文档，包含 <!doctype html> 与 <html>。\n` +
-                    `不得输出任何解释或多余文本。\n` +
-                    `必须最大程度还原用户输入的文字内容；若输入含糊，先补全合理内容再写 HTML。\n` +
-                    `文档内必须包含合适数量的图片（使用 data-sb-image 占位符）。\n\n` +
-                    `${prompt}\n\n${JSON.stringify(normalizedPlan)}`,
-                },
-              ],
+              text:
+                `只输出严格 JSON，字段必须包含：title, content_text, html。\n` +
+                `content_text 为“准备生成的文字内容”，只包含纯文字，不含 HTML。\n` +
+                `html 必须是完整 HTML 文档，包含 <!doctype html> 与 <html>。\n` +
+                `不得输出任何解释或多余文本。\n` +
+                `必须最大程度还原用户输入的文字内容；若输入含糊，先补全合理内容再写 HTML。\n` +
+                `文档内必须包含合适数量的图片（使用 data-sb-image 占位符）。\n\n` +
+                `${prompt}\n\n${JSON.stringify(normalizedPlan)}`,
             },
           ],
-        generationConfig: {
-          maxOutputTokens: 1800,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "object",
-            properties: {
-              title: { type: "string" },
-              content_text: { type: "string" },
-              html: { type: "string" },
-            },
-            required: ["title", "content_text", "html"],
-          },
         },
-      }),
+      ],
+      generationConfig: {
+        maxOutputTokens: 1800,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            content_text: { type: "string" },
+            html: { type: "string" },
+          },
+          required: ["title", "content_text", "html"],
+        },
+      },
+    });
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    const headers = {
+      "x-goog-api-key": apiKey,
+      "Content-Type": "application/json",
+    };
+
+    let response: Response | null = null;
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      response = await fetch(url, { method: "POST", headers, body: requestBody });
+      if (response.ok) {
+        break;
+      }
+      const errorText = await response.text();
+      if (response.status !== 503 || attempt === maxAttempts) {
+        return NextResponse.json(
+          { ok: false, error: `AI request failed: ${errorText}` },
+          { status: 502 }
+        );
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, 600 * attempt)
+      );
     }
-    );
+
+    if (!response) {
+      return NextResponse.json(
+        { ok: false, error: "AI request failed: empty response" },
+        { status: 502 }
+      );
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
