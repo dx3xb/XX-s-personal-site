@@ -372,13 +372,6 @@ export async function POST(request: Request) {
           image_plan?: unknown;
         }
       | null;
-    const cleaned = sanitizeJson(
-      rawText
-      .trim()
-      .replace(/^```json\s*/i, "")
-      .replace(/^```\s*/i, "")
-      .replace(/```$/i, "")
-    );
     const parseOrNull = (input: string) => {
       try {
         return JSON.parse(input) as typeof payload;
@@ -386,7 +379,21 @@ export async function POST(request: Request) {
         return null;
       }
     };
-    payload = parseOrNull(cleaned) ?? parseOrNull(extractJsonObject(cleaned) || "");
+    const parsePayloadText = (input: string) => {
+      const cleanedText = sanitizeJson(
+        input
+          .trim()
+          .replace(/^```json\s*/i, "")
+          .replace(/^```\s*/i, "")
+          .replace(/```$/i, "")
+      );
+      return (
+        parseOrNull(cleanedText) ??
+        parseOrNull(extractJsonObject(cleanedText) || "")
+      );
+    };
+
+    payload = parsePayloadText(rawText);
 
     if (!payload) {
       // Retry with repair prompt when model returns non-JSON text.
@@ -435,20 +442,11 @@ export async function POST(request: Request) {
         repairData?.candidates?.[0]?.content?.parts
           ?.map((part: any) => part?.text ?? "")
           .join("") || "";
-      const cleanedRepair = sanitizeJson(
-        repairText
-          .trim()
-          .replace(/^```json\s*/i, "")
-          .replace(/^```\s*/i, "")
-          .replace(/```$/i, "")
-      );
-      payload =
-        parseOrNull(cleanedRepair) ??
-        parseOrNull(extractJsonObject(cleanedRepair) || "");
+      payload = parsePayloadText(repairText);
     }
 
     if (!payload) {
-      const fallbackHtml = extractHtmlDocument(cleaned);
+      const fallbackHtml = extractHtmlDocument(rawText);
       if (fallbackHtml) {
         payload = {
           title: extractTitleFromHtml(fallbackHtml) || "Generated Page",
@@ -467,8 +465,8 @@ export async function POST(request: Request) {
     let title = String(payload?.title ?? "").trim();
     let html = String(payload?.html ?? "").trim();
     const contentText = String(payload?.content_text ?? "").trim();
-    const imagePlanRaw = payload?.image_plan ?? null;
-    const imagePlanParsed = ImagePlanSchema.safeParse(imagePlanRaw);
+    let imagePlanRaw = payload?.image_plan ?? null;
+    let imagePlanParsed = ImagePlanSchema.safeParse(imagePlanRaw);
 
     if (html.startsWith("{") && html.includes("\"html\"")) {
       try {
@@ -500,6 +498,63 @@ export async function POST(request: Request) {
         { status: 502 }
       );
     }
+    if (!imagePlanParsed.success || imagePlanParsed.data.images.length === 0) {
+      const repairResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "x-goog-api-key": apiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text:
+                      `请补全 image_plan 字段并修复为严格 JSON，仅输出 JSON。\n` +
+                      `必须包含：title, content_text, html, image_plan。\n` +
+                      `image_plan.images 至少 1 条，每条含 id, usage, section, prompt。\n` +
+                      `html 内必须包含对应 data-sb-image 占位符。\n\n` +
+                      `用户需求：${prompt}\n\n` +
+                      `页面计划：${JSON.stringify(normalizedPlan)}\n\n` +
+                      `原始输出：\n${rawText}`,
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              maxOutputTokens: 1800,
+              responseMimeType: "application/json",
+            },
+          }),
+        }
+      );
+
+      if (!repairResponse.ok) {
+        const errorText = await repairResponse.text();
+        return NextResponse.json(
+          { ok: false, error: `AI repair failed: ${errorText}` },
+          { status: 502 }
+        );
+      }
+
+      const repairData = await repairResponse.json();
+      const repairText =
+        repairData?.candidates?.[0]?.content?.parts
+          ?.map((part: any) => part?.text ?? "")
+          .join("") || "";
+      payload = parsePayloadText(repairText);
+      if (payload) {
+        title = String(payload?.title ?? "").trim();
+        html = String(payload?.html ?? "").trim();
+        imagePlanRaw = payload?.image_plan ?? null;
+        imagePlanParsed = ImagePlanSchema.safeParse(imagePlanRaw);
+      }
+    }
+
     if (!imagePlanParsed.success || imagePlanParsed.data.images.length === 0) {
       return NextResponse.json(
         { ok: false, error: "AI response missing image_plan" },
