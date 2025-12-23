@@ -1,0 +1,84 @@
+{
+  "pages": [
+    {
+      "id": "default",
+      "title": "Web Builder",
+      "tokens": {
+        "colors": {
+          "background": "#0b0f1f",
+          "surface": "#121826",
+          "primary": "#8b5cf6",
+          "text": "#e2e8f0",
+          "muted": "#94a3b8"
+        },
+        "space": {
+          "xs": 4,
+          "sm": 8,
+          "md": 16,
+          "lg": 24,
+          "xl": 32
+        },
+        "fontSizes": {
+          "sm": 12,
+          "base": 16,
+          "lg": 20,
+          "xl": 28,
+          "xxl": 36
+        }
+      },
+      "root": {
+        "id": "root",
+        "style": {
+          "padding": "$space.lg",
+          "color": "$colors.text",
+          "backgroundColor": "$colors.background"
+        },
+        "type": "container",
+        "props": {
+          "tag": "section"
+        },
+        "children": [
+          {
+            "id": "hero-title",
+            "style": {
+              "margin": "$space.md",
+              "fontSize": "$fontSizes.xxl"
+            },
+            "type": "text",
+            "props": {
+              "text": "Web Builder",
+              "tag": "h1"
+            }
+          },
+          {
+            "id": "hero-subtitle",
+            "style": {
+              "fontSize": "$fontSizes.base",
+              "color": "$colors.muted"
+            },
+            "type": "text",
+            "props": {
+              "text": "Schema-first page builder",
+              "tag": "p"
+            }
+          },
+          {
+            "id": "hero-cta",
+            "style": {
+              "padding": "$space.sm",
+              "margin": "$space.md",
+              "color": "#0b0f1f",
+              "backgroundColor": "$colors.primary",
+              "borderRadius": 8
+            },
+            "type": "button",
+            "props": {
+              "text": "Get Started"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "updatedAt": "2025-12-22T06:15:45.809Z"
+}
