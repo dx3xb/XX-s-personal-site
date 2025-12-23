@@ -1,6 +1,6 @@
 // src/app/apps/[slug]/page.tsx
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { query } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -22,12 +22,6 @@ export default async function AppDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  if (slug === "ai-website-builder") {
-    const origin = (process.env.AI_WEBSITE_BUILDER_ORIGIN ?? "").trim();
-    if (origin) {
-      redirect(origin);
-    }
-  }
 
   const apps = await query<AppRow>(
     `select id, slug, title, description, content, created_at, updated_at

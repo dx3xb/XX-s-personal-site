@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
       beforeFiles: [
         {
           source: "/apps/ai-website-builder/:path*",
-          destination: `${origin}/:path*`,
+          destination: `${origin}/apps/ai-website-builder/:path*`,
         },
       ],
       afterFiles: [],
