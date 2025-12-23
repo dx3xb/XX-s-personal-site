@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   async rewrites() {
-    const origin = process.env.AI_WEBSITE_BUILDER_ORIGIN;
+    const origin = (process.env.AI_WEBSITE_BUILDER_ORIGIN ?? "").trim();
     if (!origin) return [];
     return {
       beforeFiles: [

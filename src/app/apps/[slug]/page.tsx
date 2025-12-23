@@ -23,7 +23,7 @@ export default async function AppDetailPage({
 }) {
   const { slug } = await params;
   if (slug === "ai-website-builder") {
-    const origin = process.env.AI_WEBSITE_BUILDER_ORIGIN;
+    const origin = (process.env.AI_WEBSITE_BUILDER_ORIGIN ?? "").trim();
     if (origin) {
       redirect(origin);
     }
