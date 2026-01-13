@@ -117,7 +117,7 @@ export async function POST(request: Request) {
     }
 
     if (DOUBAO_ACCESS_TOKEN) {
-      headers.Authorization = `Bearer; ${DOUBAO_ACCESS_TOKEN}`;
+      headers.Authorization = `Bearer ${DOUBAO_ACCESS_TOKEN}`;
     }
     
     if (DOUBAO_RESOURCE_ID) {
