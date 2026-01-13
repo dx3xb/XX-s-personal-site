@@ -66,7 +66,7 @@ export default function VoicemakerPage() {
           setVoiceId(voiceList[0].id);
         }
       } else if (data.error) {
-        setError(data.error);
+        setError(`音色列表获取失败，可手动输入音色ID。${data.error}`);
       }
     } catch (err) {
       console.error("加载音色失败:", err);
@@ -401,27 +401,24 @@ export default function VoicemakerPage() {
               <label className="mb-3 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                 选择音色
               </label>
-              <select
+              <input
+                list="voice-options"
                 value={voiceId}
                 onChange={(e) => setVoiceId(e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base text-white focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-              >
-                {isLoadingVoices && (
-                  <option value="" disabled>
-                    正在加载音色...
-                  </option>
-                )}
-                {!isLoadingVoices && voices.length === 0 && (
-                  <option value="" disabled>
-                    暂无可用音色
-                  </option>
-                )}
+                placeholder={
+                  isLoadingVoices
+                    ? "正在加载音色..."
+                    : voices.length > 0
+                      ? "选择或输入音色ID"
+                      : "请输入音色ID"
+                }
+                className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base text-white placeholder:text-slate-500 focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              />
+              <datalist id="voice-options">
                 {voices.map((voice) => (
-                  <option key={voice.id} value={voice.id}>
-                    {voice.name}
-                  </option>
+                  <option key={voice.id} value={voice.id} label={voice.name} />
                 ))}
-              </select>
+              </datalist>
             </div>
 
             {error && (
