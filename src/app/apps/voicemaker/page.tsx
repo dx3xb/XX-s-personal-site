@@ -373,7 +373,7 @@ export default function VoicemakerPage() {
                   type="text"
                   value={newVoiceId}
                   onChange={(e) => setNewVoiceId(e.target.value)}
-                  placeholder="例如：S_xgZqKaqQ1"
+                  placeholder="例如：S_example1234"
                   className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base text-white placeholder:text-slate-500 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
