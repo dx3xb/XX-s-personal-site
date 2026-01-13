@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   Loader2,
   Play,
@@ -50,12 +50,11 @@ export default function VoicemakerPage() {
   const [voiceLanguage, setVoiceLanguage] = useState("");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [isCreatingVoice, setIsCreatingVoice] = useState(false);
+  const [showAddVoice, setShowAddVoice] = useState(false);
+  const [newVoiceId, setNewVoiceId] = useState("");
+  const [newVoiceName, setNewVoiceName] = useState("");
 
   // 加载豆包音色列表
-  useEffect(() => {
-    loadVoices();
-  }, []);
-
   const formatVoiceList = (voiceList: VoiceOption[]) => {
     const displayList = voiceList.map((voice, index) => {
       const defaultVoice = DEFAULT_VOICES.find((item) => item.id === voice.id);
@@ -90,6 +89,39 @@ export default function VoicemakerPage() {
     }
 
     return combined;
+  };
+
+  const handleAddVoice = () => {
+    const id = newVoiceId.trim();
+    const name = newVoiceName.trim();
+
+    if (!id) {
+      setError("请输入音色ID");
+      return;
+    }
+
+    if (!name) {
+      setError("请输入音色显示名称");
+      return;
+    }
+
+    setVoices((prev) => {
+      const next = [...prev];
+      const existingIndex = next.findIndex((voice) => voice.id === id);
+      const entry = { id, name };
+      if (existingIndex >= 0) {
+        next[existingIndex] = entry;
+      } else {
+        next.push(entry);
+      }
+      return next;
+    });
+
+    setVoiceId(id);
+    setNewVoiceId("");
+    setNewVoiceName("");
+    setShowAddVoice(false);
+    setError(null);
   };
 
   const loadVoices = async () => {
@@ -224,11 +256,8 @@ export default function VoicemakerPage() {
       setVoiceLanguage("");
       setAudioFile(null);
       setShowCreateVoice(false);
-      
-      // 重新加载豆包音色列表
-      await loadVoices();
-      
-      alert("音色创建成功！正在训练中，训练完成后即可使用。");
+
+      alert("音色创建成功！正在训练中，训练完成后即可使用。请点击“查询音色”刷新列表。");
     } catch (err: any) {
       setError(err?.message || "创建自定义音色失败");
     } finally {
@@ -302,8 +331,23 @@ export default function VoicemakerPage() {
           </div>
         </div>
 
-        {/* 创建自定义音色按钮 */}
-        <div className="mb-6 flex justify-end">
+        {/* 音色操作按钮 */}
+        <div className="mb-6 flex flex-wrap items-center justify-end gap-3">
+          <button
+            onClick={loadVoices}
+            disabled={isLoadingVoices}
+            className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-purple-500/50 hover:bg-purple-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Loader2 className={`h-4 w-4 ${isLoadingVoices ? "animate-spin" : ""}`} />
+            查询音色
+          </button>
+          <button
+            onClick={() => setShowAddVoice(!showAddVoice)}
+            className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-purple-500/50 hover:bg-purple-500/10"
+          >
+            <Upload className="h-4 w-4" />
+            {showAddVoice ? "取消新增" : "新增音色"}
+          </button>
           <button
             onClick={() => setShowCreateVoice(!showCreateVoice)}
             className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-purple-500/50 hover:bg-purple-500/10"
@@ -312,6 +356,49 @@ export default function VoicemakerPage() {
             {showCreateVoice ? "取消创建" : "创建自定义音色"}
           </button>
         </div>
+
+        {/* 新增音色表单 */}
+        {showAddVoice && (
+          <div className="mb-6 rounded-3xl border border-white/10 bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-transparent p-6 shadow-xl">
+            <h2 className="mb-4 text-lg font-semibold text-white">新增音色</h2>
+            <p className="mb-4 text-xs text-slate-400">
+              输入音色ID与显示名称，用于在下拉列表中快速选择
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-xs font-semibold text-slate-400">
+                  音色ID
+                </label>
+                <input
+                  type="text"
+                  value={newVoiceId}
+                  onChange={(e) => setNewVoiceId(e.target.value)}
+                  placeholder="例如：S_xgZqKaqQ1"
+                  className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base text-white placeholder:text-slate-500 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold text-slate-400">
+                  音色显示名称
+                </label>
+                <input
+                  type="text"
+                  value={newVoiceName}
+                  onChange={(e) => setNewVoiceName(e.target.value)}
+                  placeholder="例如：XX日常音色"
+                  className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base text-white placeholder:text-slate-500 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <button
+                onClick={handleAddVoice}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 px-6 py-3 text-sm font-semibold text-white transition hover:from-blue-600 hover:to-cyan-600"
+              >
+                <Upload className="h-4 w-4" />
+                添加
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 创建自定义音色表单 */}
         {showCreateVoice && (
