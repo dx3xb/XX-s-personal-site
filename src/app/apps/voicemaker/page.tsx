@@ -27,15 +27,19 @@ type VoiceOption = {
   name: string;
 };
 
+const DEFAULT_VOICES: VoiceOption[] = [
+  { id: "S_xgZqKaqQ1", name: "XX日常音色" },
+];
+
 export default function VoicemakerPage() {
   const [text, setText] = useState("");
-  const [voiceId, setVoiceId] = useState("");
+  const [voiceId, setVoiceId] = useState(DEFAULT_VOICES[0]?.id ?? "");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentRecord, setCurrentRecord] = useState<GenerationRecord | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [voices, setVoices] = useState<VoiceOption[]>([]);
+  const [voices, setVoices] = useState<VoiceOption[]>(DEFAULT_VOICES);
   const [isLoadingVoices, setIsLoadingVoices] = useState(false);
   
   // 自定义音色相关状态
@@ -52,6 +56,42 @@ export default function VoicemakerPage() {
     loadVoices();
   }, []);
 
+  const formatVoiceList = (voiceList: VoiceOption[]) => {
+    const displayList = voiceList.map((voice, index) => {
+      const defaultVoice = DEFAULT_VOICES.find((item) => item.id === voice.id);
+      if (defaultVoice) {
+        return defaultVoice;
+      }
+
+      if (voice.name && voice.name !== voice.id) {
+        return voice;
+      }
+
+      return {
+        ...voice,
+        name: `音色 ${index + 1}`,
+      };
+    });
+
+    const combined: VoiceOption[] = [];
+    const seen = new Set<string>();
+    for (const voice of DEFAULT_VOICES) {
+      if (!seen.has(voice.id)) {
+        combined.push(voice);
+        seen.add(voice.id);
+      }
+    }
+
+    for (const voice of displayList) {
+      if (!seen.has(voice.id)) {
+        combined.push(voice);
+        seen.add(voice.id);
+      }
+    }
+
+    return combined;
+  };
+
   const loadVoices = async () => {
     setIsLoadingVoices(true);
     try {
@@ -59,18 +99,26 @@ export default function VoicemakerPage() {
       const data = await response.json();
       if (data.ok) {
         const voiceList = Array.isArray(data.voices)
-          ? (data.voices as VoiceOption[])
-          : [];
+          ? formatVoiceList(data.voices as VoiceOption[])
+          : DEFAULT_VOICES;
         setVoices(voiceList);
         if (voiceList.length > 0 && !voiceList.some((voice) => voice.id === voiceId)) {
           setVoiceId(voiceList[0].id);
         }
       } else if (data.error) {
-        setError(`音色列表获取失败，可手动输入音色ID。${data.error}`);
+        setVoices(DEFAULT_VOICES);
+        setError(`音色列表获取失败，已使用默认音色。${data.error}`);
+        if (DEFAULT_VOICES[0]?.id && !voiceId) {
+          setVoiceId(DEFAULT_VOICES[0].id);
+        }
       }
     } catch (err) {
       console.error("加载音色失败:", err);
-      setError("加载音色失败，请稍后重试");
+      setVoices(DEFAULT_VOICES);
+      setError("加载音色失败，已使用默认音色");
+      if (DEFAULT_VOICES[0]?.id && !voiceId) {
+        setVoiceId(DEFAULT_VOICES[0].id);
+      }
     } finally {
       setIsLoadingVoices(false);
     }
@@ -401,24 +449,22 @@ export default function VoicemakerPage() {
               <label className="mb-3 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                 选择音色
               </label>
-              <input
-                list="voice-options"
+              <select
                 value={voiceId}
                 onChange={(e) => setVoiceId(e.target.value)}
-                placeholder={
-                  isLoadingVoices
-                    ? "正在加载音色..."
-                    : voices.length > 0
-                      ? "选择或输入音色ID"
-                      : "请输入音色ID"
-                }
-                className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base text-white placeholder:text-slate-500 focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-              />
-              <datalist id="voice-options">
+                className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base text-white focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+              >
+                {isLoadingVoices && voices.length === 0 && (
+                  <option value="" disabled>
+                    正在加载音色...
+                  </option>
+                )}
                 {voices.map((voice) => (
-                  <option key={voice.id} value={voice.id} label={voice.name} />
+                  <option key={voice.id} value={voice.id}>
+                    {voice.name}
+                  </option>
                 ))}
-              </datalist>
+              </select>
             </div>
 
             {error && (
