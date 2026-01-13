@@ -1,39 +1,65 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
+import { fetchDoubaoVoiceList } from "@/lib/doubao";
+import { randomUUID } from "crypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DOUBAO_API_KEY = process.env.DOUBAO_API_KEY;
+const DOUBAO_ACCESS_TOKEN = process.env.DOUBAO_ACCESS_TOKEN;
+const DOUBAO_APP_ID = process.env.DOUBAO_APP_ID;
+const DOUBAO_APP_TOKEN = process.env.DOUBAO_APP_TOKEN || DOUBAO_ACCESS_TOKEN || "token";
+const DOUBAO_CLUSTER = process.env.DOUBAO_CLUSTER || "volcano_icl";
+const DOUBAO_USER_UID = process.env.DOUBAO_USER_UID || "doubao";
 const DOUBAO_RESOURCE_ID = process.env.DOUBAO_RESOURCE_ID;
+const DOUBAO_EXPLICIT_LANGUAGE = process.env.DOUBAO_EXPLICIT_LANGUAGE;
 // 豆包 TTS API 端点（根据实际 API 文档调整）
 const DOUBAO_TTS_URL = process.env.DOUBAO_TTS_URL || "https://openspeech.bytedance.com/api/v1/tts";
 
-// 豆包支持的音色列表
-export const VOICE_OPTIONS = [
-  { id: "zh-CN-XiaoxiaoNeural", name: "晓晓（女声）", gender: "female" },
-  { id: "zh-CN-YunxiNeural", name: "云希（男声）", gender: "male" },
-  { id: "zh-CN-YunyangNeural", name: "云扬（男声）", gender: "male" },
-  { id: "zh-CN-XiaoyiNeural", name: "晓伊（女声）", gender: "female" },
-  { id: "zh-CN-YunjianNeural", name: "云健（男声）", gender: "male" },
-  { id: "zh-CN-XiaochenNeural", name: "晓辰（女声）", gender: "female" },
-  { id: "zh-CN-XiaohanNeural", name: "晓涵（女声）", gender: "female" },
-  { id: "zh-CN-XiaomengNeural", name: "晓梦（女声）", gender: "female" },
-  { id: "zh-CN-XiaomoNeural", name: "晓墨（女声）", gender: "female" },
-  { id: "zh-CN-XiaoqiuNeural", name: "晓秋（女声）", gender: "female" },
-  { id: "zh-CN-XiaoruiNeural", name: "晓睿（女声）", gender: "female" },
-  { id: "zh-CN-XiaoshuangNeural", name: "晓双（女声）", gender: "female" },
-  { id: "zh-CN-XiaoxuanNeural", name: "晓萱（女声）", gender: "female" },
-  { id: "zh-CN-XiaoyanNeural", name: "晓颜（女声）", gender: "female" },
-  { id: "zh-CN-XiaoyouNeural", name: "晓悠（女声）", gender: "female" },
-  { id: "zh-CN-XiaozhenNeural", name: "晓甄（女声）", gender: "female" },
-];
+const getBase64Audio = (data: any) => {
+  const candidates = [
+    data?.audio,
+    data?.audio_data,
+    data?.data,
+    data?.data?.audio,
+    data?.data?.audio_data,
+    data?.data?.data,
+    data?.result?.audio,
+    data?.result?.audio_data,
+  ];
+
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+
+  return null;
+};
+
+const normalizeBase64 = (value: string) => {
+  const trimmed = value.trim();
+  const marker = "base64,";
+  const index = trimmed.indexOf(marker);
+  if (index === -1) {
+    return trimmed;
+  }
+  return trimmed.slice(index + marker.length);
+};
 
 export async function POST(request: Request) {
   try {
-    if (!DOUBAO_API_KEY) {
+    if (!DOUBAO_API_KEY && !DOUBAO_ACCESS_TOKEN) {
       return NextResponse.json(
-        { ok: false, error: "DOUBAO_API_KEY 未配置" },
+        { ok: false, error: "DOUBAO_API_KEY / DOUBAO_ACCESS_TOKEN 未配置" },
+        { status: 500 }
+      );
+    }
+
+    if (!DOUBAO_APP_ID) {
+      return NextResponse.json(
+        { ok: false, error: "DOUBAO_APP_ID 未配置" },
         { status: 500 }
       );
     }
@@ -42,7 +68,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const text = String(body?.text ?? "").trim();
-    const voiceId = String(body?.voice_id ?? "zh-CN-XiaoxiaoNeural").trim();
+    const voiceId = String(body?.voice_id ?? "").trim();
 
     if (!text) {
       return NextResponse.json(
@@ -58,36 +84,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // 验证音色是否有效（标准音色或自定义音色）
-    const isValidStandardVoice = VOICE_OPTIONS.some((v) => v.id === voiceId);
-    
-    // 检查是否是自定义音色
-    let isCustomVoice = false;
-    if (!isValidStandardVoice) {
-      const customVoices = await query<{ voice_id: string; status: string }>(
-        `select voice_id, status
-         from public.voicemaker_custom_voices
-         where voice_id = $1
-         limit 1`,
-        [voiceId]
-      );
-      
-      if (customVoices.length > 0) {
-        isCustomVoice = true;
-        if (customVoices[0].status !== "ready") {
-          return NextResponse.json(
-            { ok: false, error: `自定义音色尚未就绪，当前状态: ${customVoices[0].status}` },
-            { status: 400 }
-          );
-        }
-      }
-    }
-    
-    if (!isValidStandardVoice && !isCustomVoice) {
+    if (!voiceId) {
       return NextResponse.json(
-        { ok: false, error: "无效的音色ID" },
+        { ok: false, error: "音色不能为空" },
         { status: 400 }
       );
+    }
+
+    try {
+      const voices = await fetchDoubaoVoiceList();
+      if (voices.length > 0 && !voices.some((voice) => voice.id === voiceId)) {
+        return NextResponse.json(
+          { ok: false, error: "无效的音色ID" },
+          { status: 400 }
+        );
+      }
+    } catch (err) {
+      console.warn("[Voicemaker] 获取音色列表失败，跳过校验:", err);
     }
 
     console.log(`[Voicemaker] 生成语音: text="${text.substring(0, 50)}...", voice="${voiceId}"`);
@@ -97,8 +110,15 @@ export async function POST(request: Request) {
     // 参考文档：https://www.volcengine.com/docs/6561/79821
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${DOUBAO_API_KEY}`,
     };
+
+    if (DOUBAO_API_KEY) {
+      headers["x-api-key"] = DOUBAO_API_KEY;
+    }
+
+    if (DOUBAO_ACCESS_TOKEN) {
+      headers.Authorization = `Bearer; ${DOUBAO_ACCESS_TOKEN}`;
+    }
     
     if (DOUBAO_RESOURCE_ID) {
       headers["Resource-Id"] = DOUBAO_RESOURCE_ID;
@@ -108,11 +128,25 @@ export async function POST(request: Request) {
       method: "POST",
       headers,
       body: JSON.stringify({
-        text: text,
-        voice: voiceId,
-        format: "mp3",
-        speed: 1.0,
-        volume: 1.0,
+        app: {
+          appid: DOUBAO_APP_ID || undefined,
+          token: DOUBAO_APP_TOKEN,
+          cluster: DOUBAO_CLUSTER,
+        },
+        user: {
+          uid: DOUBAO_USER_UID,
+        },
+        audio: {
+          voice_type: voiceId,
+          encoding: "mp3",
+          speed_ratio: 1.0,
+          explicit_language: DOUBAO_EXPLICIT_LANGUAGE || undefined,
+        },
+        request: {
+          reqid: randomUUID(),
+          text: text,
+          operation: "query",
+        },
       }),
     });
 
@@ -126,8 +160,30 @@ export async function POST(request: Request) {
     }
 
     // 获取音频数据
-    const audioBuffer = await response.arrayBuffer();
-    const audioData = Buffer.from(audioBuffer);
+    const contentType = response.headers.get("content-type") || "";
+    let audioData: Buffer;
+
+    if (contentType.includes("application/json")) {
+      const payload = await response.json();
+      if (typeof payload?.code === "number" && payload.code !== 3000) {
+        return NextResponse.json(
+          { ok: false, error: payload?.message || "TTS API 返回错误" },
+          { status: 500 }
+        );
+      }
+      const base64Audio = getBase64Audio(payload);
+      if (!base64Audio) {
+        console.error("[Voicemaker] 音频数据缺失:", payload);
+        return NextResponse.json(
+          { ok: false, error: "TTS API 返回缺少音频数据" },
+          { status: 500 }
+        );
+      }
+      audioData = Buffer.from(normalizeBase64(base64Audio), "base64");
+    } else {
+      const audioBuffer = await response.arrayBuffer();
+      audioData = Buffer.from(audioBuffer);
+    }
 
     // 生成文件名
     const timestamp = Date.now();

@@ -14,26 +14,6 @@ import {
   X,
 } from "lucide-react";
 
-// 标准音色列表
-const VOICE_OPTIONS = [
-  { id: "zh-CN-XiaoxiaoNeural", name: "晓晓（女声）", gender: "female", type: "standard" },
-  { id: "zh-CN-YunxiNeural", name: "云希（男声）", gender: "male", type: "standard" },
-  { id: "zh-CN-YunyangNeural", name: "云扬（男声）", gender: "male", type: "standard" },
-  { id: "zh-CN-XiaoyiNeural", name: "晓伊（女声）", gender: "female", type: "standard" },
-  { id: "zh-CN-YunjianNeural", name: "云健（男声）", gender: "male", type: "standard" },
-  { id: "zh-CN-XiaochenNeural", name: "晓辰（女声）", gender: "female", type: "standard" },
-  { id: "zh-CN-XiaohanNeural", name: "晓涵（女声）", gender: "female", type: "standard" },
-  { id: "zh-CN-XiaomengNeural", name: "晓梦（女声）", gender: "female", type: "standard" },
-  { id: "zh-CN-XiaomoNeural", name: "晓墨（女声）", gender: "female", type: "standard" },
-  { id: "zh-CN-XiaoqiuNeural", name: "晓秋（女声）", gender: "female", type: "standard" },
-  { id: "zh-CN-XiaoruiNeural", name: "晓睿（女声）", gender: "female", type: "standard" },
-  { id: "zh-CN-XiaoshuangNeural", name: "晓双（女声）", gender: "female", type: "standard" },
-  { id: "zh-CN-XiaoxuanNeural", name: "晓萱（女声）", gender: "female", type: "standard" },
-  { id: "zh-CN-XiaoyanNeural", name: "晓颜（女声）", gender: "female", type: "standard" },
-  { id: "zh-CN-XiaoyouNeural", name: "晓悠（女声）", gender: "female", type: "standard" },
-  { id: "zh-CN-XiaozhenNeural", name: "晓甄（女声）", gender: "female", type: "standard" },
-];
-
 type GenerationRecord = {
   id: string;
   audio_url: string;
@@ -42,61 +22,68 @@ type GenerationRecord = {
   created_at: string;
 };
 
-type CustomVoice = {
+type VoiceOption = {
   id: string;
   name: string;
-  description: string | null;
-  voice_id: string;
-  status: string;
-  created_at: string;
 };
 
 export default function VoicemakerPage() {
   const [text, setText] = useState("");
-  const [voiceId, setVoiceId] = useState("zh-CN-XiaoxiaoNeural");
+  const [voiceId, setVoiceId] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentRecord, setCurrentRecord] = useState<GenerationRecord | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [voices, setVoices] = useState<VoiceOption[]>([]);
+  const [isLoadingVoices, setIsLoadingVoices] = useState(false);
   
   // 自定义音色相关状态
-  const [customVoices, setCustomVoices] = useState<CustomVoice[]>([]);
   const [showCreateVoice, setShowCreateVoice] = useState(false);
   const [voiceName, setVoiceName] = useState("");
   const [voiceDescription, setVoiceDescription] = useState("");
+  const [speakerId, setSpeakerId] = useState("");
+  const [voiceLanguage, setVoiceLanguage] = useState("");
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [isCreatingVoice, setIsCreatingVoice] = useState(false);
-  const [allVoices, setAllVoices] = useState([...VOICE_OPTIONS]);
 
-  // 加载自定义音色列表
+  // 加载豆包音色列表
   useEffect(() => {
-    loadCustomVoices();
+    loadVoices();
   }, []);
 
-  const loadCustomVoices = async () => {
+  const loadVoices = async () => {
+    setIsLoadingVoices(true);
     try {
-      const response = await fetch("/api/voicemaker/custom-voice/create?status=ready");
+      const response = await fetch("/api/voicemaker/voices");
       const data = await response.json();
       if (data.ok) {
-        setCustomVoices(data.voices || []);
-        // 合并标准音色和自定义音色
-        const customVoiceOptions = (data.voices || []).map((v: CustomVoice) => ({
-          id: v.voice_id,
-          name: `${v.name}（自定义）`,
-          gender: "custom" as const,
-          type: "custom" as const,
-        }));
-        setAllVoices([...VOICE_OPTIONS, ...customVoiceOptions]);
+        const voiceList = Array.isArray(data.voices)
+          ? (data.voices as VoiceOption[])
+          : [];
+        setVoices(voiceList);
+        if (voiceList.length > 0 && !voiceList.some((voice) => voice.id === voiceId)) {
+          setVoiceId(voiceList[0].id);
+        }
+      } else if (data.error) {
+        setError(data.error);
       }
     } catch (err) {
-      console.error("加载自定义音色失败:", err);
+      console.error("加载音色失败:", err);
+      setError("加载音色失败，请稍后重试");
+    } finally {
+      setIsLoadingVoices(false);
     }
   };
 
   const handleGenerate = async () => {
     if (!text.trim()) {
       setError("请输入要生成的文本内容");
+      return;
+    }
+
+    if (!voiceId) {
+      setError("请选择音色");
       return;
     }
 
@@ -148,6 +135,11 @@ export default function VoicemakerPage() {
       return;
     }
 
+    if (!speakerId.trim()) {
+      setError("请输入 SpeakerID");
+      return;
+    }
+
     if (!audioFile) {
       setError("请选择音频文件");
       return;
@@ -160,6 +152,10 @@ export default function VoicemakerPage() {
       const formData = new FormData();
       formData.append("name", voiceName.trim());
       formData.append("description", voiceDescription.trim());
+      formData.append("speaker_id", speakerId.trim());
+      if (voiceLanguage) {
+        formData.append("language", voiceLanguage);
+      }
       formData.append("audio", audioFile);
 
       const response = await fetch("/api/voicemaker/custom-voice/create", {
@@ -176,11 +172,13 @@ export default function VoicemakerPage() {
       // 重置表单
       setVoiceName("");
       setVoiceDescription("");
+      setSpeakerId("");
+      setVoiceLanguage("");
       setAudioFile(null);
       setShowCreateVoice(false);
       
-      // 重新加载自定义音色列表
-      await loadCustomVoices();
+      // 重新加载豆包音色列表
+      await loadVoices();
       
       alert("音色创建成功！正在训练中，训练完成后即可使用。");
     } catch (err: any) {
@@ -250,7 +248,7 @@ export default function VoicemakerPage() {
               </p>
               <h1 className="text-2xl font-semibold text-white">Voicemaker</h1>
               <p className="text-sm text-slate-400">
-                AI 文字转语音工具 - 支持标准音色和声音复刻
+                AI 文字转语音工具 - 使用豆包 App 音色与声音复刻
               </p>
             </div>
           </div>
@@ -287,6 +285,35 @@ export default function VoicemakerPage() {
                   placeholder="例如：我的声音"
                   className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base text-white placeholder:text-slate-500 focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
                 />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-semibold text-slate-400">
+                  SpeakerID（控制台获取）
+                </label>
+                <input
+                  type="text"
+                  value={speakerId}
+                  onChange={(e) => setSpeakerId(e.target.value)}
+                  placeholder="例如：S_xxxxxxxx"
+                  className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base text-white placeholder:text-slate-500 focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-semibold text-slate-400">
+                  训练语种（非中文时建议选择）
+                </label>
+                <select
+                  value={voiceLanguage}
+                  onChange={(e) => setVoiceLanguage(e.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base text-white focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                >
+                  <option value="">自动/不指定</option>
+                  <option value="0">中文</option>
+                  <option value="1">英文</option>
+                  <option value="7">法语</option>
+                </select>
               </div>
 
               <div>
@@ -330,7 +357,7 @@ export default function VoicemakerPage() {
 
               <button
                 onClick={handleCreateVoice}
-                disabled={isCreatingVoice || !voiceName.trim() || !audioFile}
+                disabled={isCreatingVoice || !voiceName.trim() || !speakerId.trim() || !audioFile}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 px-6 py-3 text-sm font-semibold text-white transition hover:from-purple-600 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isCreatingVoice ? (
@@ -379,22 +406,21 @@ export default function VoicemakerPage() {
                 onChange={(e) => setVoiceId(e.target.value)}
                 className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-base text-white focus:border-purple-500/50 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
               >
-                <optgroup label="标准音色">
-                  {VOICE_OPTIONS.map((voice) => (
-                    <option key={voice.id} value={voice.id}>
-                      {voice.name}
-                    </option>
-                  ))}
-                </optgroup>
-                {customVoices.length > 0 && (
-                  <optgroup label="自定义音色">
-                    {customVoices.map((voice) => (
-                      <option key={voice.voice_id} value={voice.voice_id}>
-                        {voice.name}（自定义）
-                      </option>
-                    ))}
-                  </optgroup>
+                {isLoadingVoices && (
+                  <option value="" disabled>
+                    正在加载音色...
+                  </option>
                 )}
+                {!isLoadingVoices && voices.length === 0 && (
+                  <option value="" disabled>
+                    暂无可用音色
+                  </option>
+                )}
+                {voices.map((voice) => (
+                  <option key={voice.id} value={voice.id}>
+                    {voice.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -406,7 +432,7 @@ export default function VoicemakerPage() {
 
             <button
               onClick={handleGenerate}
-              disabled={isGenerating || !text.trim()}
+              disabled={isGenerating || !text.trim() || !voiceId}
               className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 px-6 py-4 text-sm font-semibold text-white transition hover:from-purple-600 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isGenerating ? (
@@ -502,7 +528,7 @@ export default function VoicemakerPage() {
         <div className="mt-8 rounded-2xl border border-white/10 bg-black/40 p-6">
           <h3 className="mb-3 text-sm font-semibold text-slate-300">使用说明</h3>
           <ul className="space-y-2 text-xs text-slate-400">
-            <li>• <strong>标准音色</strong>：选择预设音色，输入文本即可生成语音</li>
+            <li>• 音色列表来自豆包 App 预设/自定义音色</li>
             <li>• <strong>声音复刻</strong>：上传至少 5 秒的清晰音频，创建你的专属音色</li>
             <li>• 输入要转换的文本内容（最多 2000 个字符）</li>
             <li>• 生成后可以播放试听或下载音频文件</li>

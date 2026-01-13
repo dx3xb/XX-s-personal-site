@@ -5,9 +5,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DOUBAO_API_KEY = process.env.DOUBAO_API_KEY;
+const DOUBAO_ACCESS_TOKEN = process.env.DOUBAO_ACCESS_TOKEN;
 const DOUBAO_APP_ID = process.env.DOUBAO_APP_ID;
-// 豆包声音复刻 API 端点
-const DOUBAO_VOICE_CLONE_URL = process.env.DOUBAO_VOICE_CLONE_URL || "https://openspeech.bytedance.com/api/v1/voice/clone";
+const DOUBAO_VOICE_MODEL_TYPE = Number(process.env.DOUBAO_VOICE_MODEL_TYPE || "2");
+const DOUBAO_VOICE_LANGUAGE = process.env.DOUBAO_VOICE_LANGUAGE;
+const DOUBAO_VOICE_EXTRA_PARAMS = process.env.DOUBAO_VOICE_EXTRA_PARAMS;
+const DOUBAO_VOICE_RESOURCE_ID = process.env.DOUBAO_VOICE_RESOURCE_ID;
+// 豆包声音复刻上传 API 端点
+const DOUBAO_VOICE_CLONE_URL =
+  process.env.DOUBAO_VOICE_CLONE_URL || "https://openspeech.bytedance.com/api/v1/mega_tts/audio/upload";
 
 /**
  * 创建自定义音色（声音复刻）
@@ -15,9 +21,9 @@ const DOUBAO_VOICE_CLONE_URL = process.env.DOUBAO_VOICE_CLONE_URL || "https://op
  */
 export async function POST(request: Request) {
   try {
-    if (!DOUBAO_API_KEY) {
+    if (!DOUBAO_API_KEY && !DOUBAO_ACCESS_TOKEN) {
       return NextResponse.json(
-        { ok: false, error: "DOUBAO_API_KEY 未配置" },
+        { ok: false, error: "DOUBAO_API_KEY / DOUBAO_ACCESS_TOKEN 未配置" },
         { status: 500 }
       );
     }
@@ -33,6 +39,8 @@ export async function POST(request: Request) {
     const name = String(formData.get("name") ?? "").trim();
     const description = String(formData.get("description") ?? "").trim();
     const audioFile = formData.get("audio") as File | null;
+    const speakerId = String(formData.get("speaker_id") ?? "").trim();
+    const languageRaw = String(formData.get("language") ?? "").trim();
 
     if (!name) {
       return NextResponse.json(
@@ -44,6 +52,13 @@ export async function POST(request: Request) {
     if (!audioFile) {
       return NextResponse.json(
         { ok: false, error: "请上传音频文件" },
+        { status: 400 }
+      );
+    }
+
+    if (!speakerId) {
+      return NextResponse.json(
+        { ok: false, error: "请填写 SpeakerID" },
         { status: 400 }
       );
     }
@@ -67,20 +82,47 @@ export async function POST(request: Request) {
     // 根据文档：https://www.volcengine.com/docs/6561/1305191
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${DOUBAO_API_KEY}`,
     };
 
-    if (DOUBAO_APP_ID) {
-      headers["X-App-Id"] = DOUBAO_APP_ID;
+    if (DOUBAO_API_KEY) {
+      headers["x-api-key"] = DOUBAO_API_KEY;
+    }
+
+    if (DOUBAO_ACCESS_TOKEN) {
+      headers.Authorization = `Bearer; ${DOUBAO_ACCESS_TOKEN}`;
+    }
+
+    const resourceId =
+      DOUBAO_VOICE_RESOURCE_ID || (DOUBAO_VOICE_MODEL_TYPE === 4 ? "seed-icl-2.0" : "seed-icl-1.0");
+    if (resourceId) {
+      headers["Resource-Id"] = resourceId;
     }
 
     // 构建请求体
-    const requestBody = {
-      name: name,
-      description: description || undefined,
-      audio_data: audioBase64,
-      audio_format: audioFile.type.includes("wav") ? "wav" : "mp3",
+    const requestBody: Record<string, unknown> = {
+      appid: DOUBAO_APP_ID,
+      speaker_id: speakerId,
+      audios: [
+        {
+          audio_bytes: audioBase64,
+          audio_format: audioFile.type.includes("wav") ? "wav" : "mp3",
+        },
+      ],
+      source: 2,
+      model_type: Number.isNaN(DOUBAO_VOICE_MODEL_TYPE) ? 2 : DOUBAO_VOICE_MODEL_TYPE,
     };
+
+    const languageSource = languageRaw || DOUBAO_VOICE_LANGUAGE || "";
+    if (languageSource) {
+      const languageValue = Number.parseInt(languageSource, 10);
+      if (!Number.isNaN(languageValue)) {
+        requestBody.language = languageValue;
+      }
+    }
+
+    if (DOUBAO_VOICE_EXTRA_PARAMS) {
+      requestBody.extra_params = DOUBAO_VOICE_EXTRA_PARAMS;
+    }
 
     const response = await fetch(DOUBAO_VOICE_CLONE_URL, {
       method: "POST",
@@ -98,10 +140,18 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json();
-    
+
+    if (data?.BaseResp?.StatusCode !== 0) {
+      const message = data?.BaseResp?.StatusMessage || "声音复刻上传失败";
+      return NextResponse.json(
+        { ok: false, error: message },
+        { status: 500 }
+      );
+    }
+
     // 豆包返回的音色ID
-    const voiceId = data.voice_id || data.id || data.voiceId;
-    
+    const voiceId = data?.speaker_id || data?.SpeakerID;
+
     if (!voiceId) {
       console.error("[Voicemaker] API 返回格式异常:", data);
       return NextResponse.json(
