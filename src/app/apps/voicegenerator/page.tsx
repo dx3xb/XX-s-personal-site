@@ -31,7 +31,7 @@ const DEFAULT_VOICES: VoiceOption[] = [
   { id: "S_xgZqKaqQ1", name: "XX日常音色" },
 ];
 
-export default function VoicemakerPage() {
+export default function VoiceGeneratorPage() {
   const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState(DEFAULT_VOICES[0]?.id ?? "");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -127,7 +127,7 @@ export default function VoicemakerPage() {
   const loadVoices = async () => {
     setIsLoadingVoices(true);
     try {
-      const response = await fetch("/api/voicemaker/voices");
+      const response = await fetch("/api/voicegenerator/voices");
       const data = await response.json();
       if (data.ok) {
         const voiceList = Array.isArray(data.voices)
@@ -178,7 +178,7 @@ export default function VoicemakerPage() {
     setIsPlaying(false);
 
     try {
-      const response = await fetch("/api/voicemaker/generate", {
+      const response = await fetch("/api/voicegenerator/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -238,7 +238,7 @@ export default function VoicemakerPage() {
       }
       formData.append("audio", audioFile);
 
-      const response = await fetch("/api/voicemaker/custom-voice/create", {
+      const response = await fetch("/api/voicegenerator/custom-voice/create", {
         method: "POST",
         body: formData,
       });
@@ -279,7 +279,7 @@ export default function VoicemakerPage() {
 
   const handleDownload = () => {
     if (!currentRecord) return;
-    window.open(`/api/voicemaker/download/${currentRecord.id}`, "_blank");
+    window.open(`/api/voicegenerator/download/${currentRecord.id}`, "_blank");
   };
 
   const handleAudioEnded = () => {
@@ -323,7 +323,7 @@ export default function VoicemakerPage() {
               <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
                 xxlab.io
               </p>
-              <h1 className="text-2xl font-semibold text-white">Voicemaker</h1>
+              <h1 className="text-2xl font-semibold text-white">VoiceGenerator</h1>
               <p className="text-sm text-slate-400">
                 AI 文字转语音工具 - 使用豆包 App 音色与声音复刻
               </p>
