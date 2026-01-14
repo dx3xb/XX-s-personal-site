@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ const rewriteHtml = (body: string) => {
 };
 
 const rewriteCss = (body: string) => {
-  return body.replace(/url\(\s*\//g, `url(${LOCAL_PREFIX}/`);
+  return body.replace(/url\(\s*\/(?!\/)/g, `url(${LOCAL_PREFIX}/`);
 };
 
 const buildTargetUrl = (requestUrl: URL, segments?: string[]) => {
@@ -23,7 +23,7 @@ const buildTargetUrl = (requestUrl: URL, segments?: string[]) => {
   return targetUrl;
 };
 
-const proxyRequest = async (request: Request, segments?: string[]) => {
+const proxyRequest = async (request: NextRequest, segments?: string[]) => {
   const requestUrl = new URL(request.url);
   const targetUrl = buildTargetUrl(requestUrl, segments);
   const headers = new Headers(request.headers);
@@ -66,36 +66,41 @@ const proxyRequest = async (request: Request, segments?: string[]) => {
 };
 
 export async function GET(
-  request: Request,
-  { params }: { params: { path?: string[] } }
+  request: NextRequest,
+  { params }: { params: Promise<{ path?: string[] }> }
 ) {
-  return proxyRequest(request, params.path);
+  const { path } = await params;
+  return proxyRequest(request, path);
 }
 
 export async function POST(
-  request: Request,
-  { params }: { params: { path?: string[] } }
+  request: NextRequest,
+  { params }: { params: Promise<{ path?: string[] }> }
 ) {
-  return proxyRequest(request, params.path);
+  const { path } = await params;
+  return proxyRequest(request, path);
 }
 
 export async function PUT(
-  request: Request,
-  { params }: { params: { path?: string[] } }
+  request: NextRequest,
+  { params }: { params: Promise<{ path?: string[] }> }
 ) {
-  return proxyRequest(request, params.path);
+  const { path } = await params;
+  return proxyRequest(request, path);
 }
 
 export async function PATCH(
-  request: Request,
-  { params }: { params: { path?: string[] } }
+  request: NextRequest,
+  { params }: { params: Promise<{ path?: string[] }> }
 ) {
-  return proxyRequest(request, params.path);
+  const { path } = await params;
+  return proxyRequest(request, path);
 }
 
 export async function DELETE(
-  request: Request,
-  { params }: { params: { path?: string[] } }
+  request: NextRequest,
+  { params }: { params: Promise<{ path?: string[] }> }
 ) {
-  return proxyRequest(request, params.path);
+  const { path } = await params;
+  return proxyRequest(request, path);
 }
