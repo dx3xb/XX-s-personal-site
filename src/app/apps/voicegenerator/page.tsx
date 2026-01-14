@@ -1,6 +1,5 @@
 "use client";
 
-import Script from "next/script";
 import React, { useState, useRef } from "react";
 import {
   Loader2,
@@ -310,8 +309,6 @@ export default function VoiceGeneratorPage() {
 
   return (
     <main className="min-h-screen bg-[#0b0b0d] text-slate-100">
-      <Script src="https://cdn.tailwindcss.com" strategy="beforeInteractive" />
-
       <div className="mx-auto max-w-4xl px-6 py-10">
         {/* Header */}
         <div className="mb-10">
